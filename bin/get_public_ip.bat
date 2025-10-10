@@ -18,12 +18,21 @@ REM limitations under the License.
 
 SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 
-REM Defaults
-set "TIMEOUT=10"
-set "HTTPS_URL=https://checkip.amazonaws.com"
-set "DNS_PROVIDER=opendns"
+set "DEFAULT_HTTPS_IPV4=https://ipv4.icanhazip.com"
+set "DEFAULT_HTTPS_IPV6=https://ipv6.icanhazip.com"
+set "DEFAULT_DNS_PROVIDER=opendns"
+
+set "TIMEOUT=5"
+set "HTTPS_URL=%DEFAULT_HTTPS_IPV4%"
+set "HTTPS_URL_IPV4=%DEFAULT_HTTPS_IPV4%"
+set "HTTPS_URL_IPV6=%DEFAULT_HTTPS_IPV6%"
+set "DNS_PROVIDER=%DEFAULT_DNS_PROVIDER%"
+set "DNS_PROVIDER_IPV4=%DEFAULT_DNS_PROVIDER%"
+set "DNS_PROVIDER_IPV6=%DEFAULT_DNS_PROVIDER%"
 set "MODE=auto"
 set "FORCED_COMMAND="
+set "IP_ONLY=0"
+set "IP_VERSION_FILTER="
 set "DNS_SPECIFIED=0"
 set "HTTPS_ONLY_SPECIFIED=0"
 set "DNS_ONLY_SPECIFIED=0"
@@ -46,8 +55,36 @@ if /I "%ARG%"=="-https" (
     echo.%~2| findstr /I /C:"https://" >nul
     if errorlevel 1 (
         set "HTTPS_URL=https://%~2"
+        set "HTTPS_URL_IPV4=https://%~2"
+        set "HTTPS_URL_IPV6=https://%~2"
     ) else (
         set "HTTPS_URL=%~2"
+        set "HTTPS_URL_IPV4=%~2"
+        set "HTTPS_URL_IPV6=%~2"
+    )
+    shift
+    shift
+    goto parse_loop
+)
+if /I "%ARG%"=="-https-4" (
+    if "%~2"=="" goto usage_err
+    echo.%~2| findstr /I /C:"https://" >nul
+    if errorlevel 1 (
+        set "HTTPS_URL_IPV4=https://%~2"
+    ) else (
+        set "HTTPS_URL_IPV4=%~2"
+    )
+    shift
+    shift
+    goto parse_loop
+)
+if /I "%ARG%"=="-https-6" (
+    if "%~2"=="" goto usage_err
+    echo.%~2| findstr /I /C:"https://" >nul
+    if errorlevel 1 (
+        set "HTTPS_URL_IPV6=https://%~2"
+    ) else (
+        set "HTTPS_URL_IPV6=%~2"
     )
     shift
     shift
@@ -57,15 +94,48 @@ if /I "%ARG%"=="-dns" (
     if "%~2"=="" goto usage_err
     if /I "%~2"=="opendns" (
         set "DNS_PROVIDER=opendns"
-        set "DNS_SPECIFIED=1"
-    ) else if /I "%~2"=="google" (
-        set "DNS_PROVIDER=google"
+        set "DNS_PROVIDER_IPV4=opendns"
+        set "DNS_PROVIDER_IPV6=opendns"
         set "DNS_SPECIFIED=1"
     ) else if /I "%~2"=="cloudflare" (
         set "DNS_PROVIDER=cloudflare"
+        set "DNS_PROVIDER_IPV4=cloudflare"
+        set "DNS_PROVIDER_IPV6=cloudflare"
         set "DNS_SPECIFIED=1"
     ) else (
-        echo ERROR: Invalid DNS provider "%~2". Must be: opendns, google, or cloudflare 1>&2
+        echo ERROR: Invalid DNS provider "%~2". Must be: opendns or cloudflare 1>&2
+        goto usage_err
+    )
+    shift
+    shift
+    goto parse_loop
+)
+if /I "%ARG%"=="-dns-4" (
+    if "%~2"=="" goto usage_err
+    if /I "%~2"=="opendns" (
+        set "DNS_PROVIDER_IPV4=opendns"
+        set "DNS_SPECIFIED=1"
+    ) else if /I "%~2"=="cloudflare" (
+        set "DNS_PROVIDER_IPV4=cloudflare"
+        set "DNS_SPECIFIED=1"
+    ) else (
+        echo ERROR: Invalid DNS provider "%~2". Must be: opendns or cloudflare 1>&2
+        goto usage_err
+    )
+    shift
+    shift
+    goto parse_loop
+)
+if /I "%ARG%"=="-dns-6" (
+    if "%~2"=="" goto usage_err
+    if /I "%~2"=="opendns" (
+        set "DNS_PROVIDER_IPV6=opendns"
+        set "DNS_SPECIFIED=1"
+    ) else if /I "%~2"=="cloudflare" (
+        set "DNS_PROVIDER_IPV6=cloudflare"
+        set "DNS_SPECIFIED=1"
+    ) else (
+        echo ERROR: Invalid DNS provider "%~2". Must be: opendns or cloudflare 1>&2
         goto usage_err
     )
     shift
@@ -81,6 +151,29 @@ if /I "%ARG%"=="-https-only" (
 if /I "%ARG%"=="-dns-only" (
     set "MODE=dns-only"
     set "DNS_ONLY_SPECIFIED=1"
+    shift
+    goto parse_loop
+)
+if /I "%ARG%"=="-ipv4-only" (
+    if not "%IP_VERSION_FILTER%"=="" (
+        echo ERROR: Cannot specify multiple IP version flags 1>&2
+        goto usage_err
+    )
+    set "IP_VERSION_FILTER=ipv4"
+    shift
+    goto parse_loop
+)
+if /I "%ARG%"=="-ipv6-only" (
+    if not "%IP_VERSION_FILTER%"=="" (
+        echo ERROR: Cannot specify multiple IP version flags 1>&2
+        goto usage_err
+    )
+    set "IP_VERSION_FILTER=ipv6"
+    shift
+    goto parse_loop
+)
+if /I "%ARG%"=="-ip-only" (
+    set "IP_ONLY=1"
     shift
     goto parse_loop
 )
@@ -108,6 +201,12 @@ if "%HTTPS_ONLY_SPECIFIED%"=="1" (
 
 set "BASE_HOST=%HTTPS_URL:https://=%"
 for /f "delims=/ tokens=1" %%A in ("%BASE_HOST%") do set "BASE_HOST=%%A"
+
+set "BASE_HOST_IPV4=%HTTPS_URL_IPV4:https://=%"
+for /f "delims=/ tokens=1" %%A in ("%BASE_HOST_IPV4%") do set "BASE_HOST_IPV4=%%A"
+
+set "BASE_HOST_IPV6=%HTTPS_URL_IPV6:https://=%"
+for /f "delims=/ tokens=1" %%A in ("%BASE_HOST_IPV6%") do set "BASE_HOST_IPV6=%%A"
 
 if defined FORCED_COMMAND (
     call :forced_fetch
@@ -151,97 +250,145 @@ call :print_usage
 exit /b 1
 
 :print_usage
-echo Usage: .\get_public_ip.bat [-timeout ^<seconds^>] [-https ^<host[/path]^>] [-dns ^<provider^>] [-https-only] [-dns-only] [-command ^<command^>]
+echo Usage: .\get_public_ip.bat [-timeout ^<seconds^>] [-https ^<host[/path]^>] [-https-4 ^<host[/path]^>] [-https-6 ^<host[/path]^>] [-dns ^<provider^>] [-dns-4 ^<provider^>] [-dns-6 ^<provider^>] [-https-only] [-dns-only] [-ipv4-only] [-ipv6-only] [-ip-only] [-command ^<command^>]
 echo.
-echo Providers (for -dns):
-echo   opendns ^| google ^| cloudflare
+echo Providers (for -dns, -dns-4, -dns-6):
+echo     opendns ^| cloudflare
 echo Commands (for -command):
-echo   curl ^| certutil ^| bitsadmin ^| nslookup
+echo     curl ^| certutil ^| bitsadmin ^| nslookup
 echo Modes:
-echo   -https-only   Use HTTPS methods only (no DNS fallback)
-echo   -dns-only     Use DNS method only (skip HTTPS)
+echo     -https-only   Use HTTPS methods only (no DNS fallback)
+echo     -dns-only     Use DNS method only (skip HTTPS)
+echo     -ipv4-only    Only output IPv4 addresses
+echo     -ipv6-only    Only output IPv6 addresses
+echo     -ip-only      Output only IP address without metadata
+echo Version-specific endpoints:
+echo     -https-4      HTTPS endpoint for IPv4 (overrides -https for IPv4)
+echo     -https-6      HTTPS endpoint for IPv6 (overrides -https for IPv6)
+echo     -dns-4        DNS provider for IPv4 (overrides -dns for IPv4)
+echo     -dns-6        DNS provider for IPv6 (overrides -dns for IPv6)
 echo Notes:
-echo   Supplying both -https-only and -dns-only is an error.
-echo   -command forces use of exactly one retrieval tool and bypasses fallback logic.
-echo   If -command is set it must not conflict with a chosen mode (e.g. forcing nslookup with -https-only).
+echo     Supplying both -https-only and -dns-only is an error.
+echo     Supplying both -ipv4-only and -ipv6-only is an error.
+echo     -command forces use of exactly one retrieval tool and bypasses fallback logic.
+echo     If -command is set it must not conflict with a chosen mode (e.g. forcing nslookup with -https-only).
+echo     Version-specific parameters (-https-4, -https-6, -dns-4, -dns-6) override general parameters for their respective IP versions.
 echo Examples:
-echo   .\get_public_ip.bat -timeout 5
-echo   .\get_public_ip.bat -https ipinfo.io/ip
-echo   .\get_public_ip.bat -dns cloudflare
-echo   .\get_public_ip.bat -dns-only -dns google
-echo   .\get_public_ip.bat -https-only -https checkip.amazonaws.com
-echo   .\get_public_ip.bat -command certutil
+echo     .\get_public_ip.bat -timeout 5
+echo     .\get_public_ip.bat -https ipinfo.io/ip
+echo     .\get_public_ip.bat -https-4 ipv4.icanhazip.com -https-6 ipv6.icanhazip.com
+echo     .\get_public_ip.bat -dns cloudflare
+echo     .\get_public_ip.bat -dns-4 cloudflare -dns-6 opendns
+echo     .\get_public_ip.bat -dns-only -dns cloudflare
+echo     .\get_public_ip.bat -https-only -https ipv4.icanhazip.com
+echo     .\get_public_ip.bat -ipv4-only -ip-only
+echo     .\get_public_ip.bat -ipv6-only
 goto :eof
 
 
 :forced_fetch
 if /I "%MODE%"=="https-only" (
     if /I "%FORCED_COMMAND%"=="nslookup" (
-        echo ERROR: Cannot use nslookup command with https-only mode 1>&2
+        echo ERROR: -command nslookup conflicts with -https-only 1>&2
         goto usage_err
     )
 )
 if /I "%MODE%"=="dns-only" (
     if /I "%FORCED_COMMAND%"=="curl" (
-        echo ERROR: Cannot use curl command with dns-only mode 1>&2
+        echo ERROR: -command curl conflicts with -dns-only 1>&2
         goto usage_err
     )
     if /I "%FORCED_COMMAND%"=="certutil" (
-        echo ERROR: Cannot use certutil command with dns-only mode 1>&2
+        echo ERROR: -command certutil conflicts with -dns-only 1>&2
         goto usage_err
     )
     if /I "%FORCED_COMMAND%"=="bitsadmin" (
-        echo ERROR: Cannot use bitsadmin command with dns-only mode 1>&2
+        echo ERROR: -command bitsadmin conflicts with -dns-only 1>&2
         goto usage_err
     )
 )
+
+set "success=0"
 if /I "%FORCED_COMMAND%"=="curl" (
-    call :https_curl && exit /b 0
-    exit /b 1
+    call :https_curl_forced && set "success=1"
+) else if /I "%FORCED_COMMAND%"=="certutil" (
+    call :https_certutil_forced && set "success=1"
+) else if /I "%FORCED_COMMAND%"=="bitsadmin" (
+    call :https_bitsadmin_forced && set "success=1"
+) else if /I "%FORCED_COMMAND%"=="nslookup" (
+    call :dns_nslookup_forced && set "success=1"
 )
-if /I "%FORCED_COMMAND%"=="certutil" (
-    call :https_certutil && exit /b 0
-    exit /b 1
-)
-if /I "%FORCED_COMMAND%"=="bitsadmin" (
-    call :https_bitsadmin && exit /b 0
-    exit /b 1
-)
-if /I "%FORCED_COMMAND%"=="nslookup" (
-    call :dns_nslookup && exit /b 0
-    exit /b 1
-)
+
+if "%success%"=="1" exit /b 0
 exit /b 1
 
 
 :fetch_https
-call :https_curl && exit /b 0
-call :https_certutil && exit /b 0
-call :https_bitsadmin && exit /b 0
+set "success=0"
+if "%IP_VERSION_FILTER%"=="ipv4" (
+    call :try_https_ipv4 && set "success=1"
+) else if "%IP_VERSION_FILTER%"=="ipv6" (
+    call :try_https_ipv6 && set "success=1"
+) else (
+    call :try_https_ipv4 && set "success=1"
+    call :try_https_ipv6 && set "success=1"
+)
+if "%success%"=="1" exit /b 0
 exit /b 1
 
-:https_curl
+:try_https_ipv4
+call :https_curl_ipv4 && exit /b 0
+call :https_certutil_ipv4 && exit /b 0
+call :https_bitsadmin_ipv4 && exit /b 0
+exit /b 1
+
+:try_https_ipv6
+call :https_curl_ipv6 && exit /b 0
+call :https_certutil_ipv6 && exit /b 0
+call :https_bitsadmin_ipv6 && exit /b 0
+exit /b 1
+
+:https_curl_ipv4
 where curl >nul 2>&1 || exit /b 1
-for /f %%A in ('curl -ks --max-time %TIMEOUT% "%HTTPS_URL%" 2^>nul') do (
-    call :validate_and_output "%%A,4,https,%BASE_HOST%,curl"
+set "URL_TO_USE=%HTTPS_URL_IPV4%"
+set "HOST_TO_REPORT=%BASE_HOST_IPV4%"
+for /f %%A in ('curl -ks --max-time %TIMEOUT% "!URL_TO_USE!" 2^>nul') do (
+    call :validate_and_output "%%A,4,https,!HOST_TO_REPORT!,curl"
     if not errorlevel 1 exit /b 0
 )
-
-if not "%HTTPS_URL%"=="https://checkip.amazonaws.com" (
-    for /f %%A in ('curl -ks --max-time %TIMEOUT% "https://checkip.amazonaws.com" 2^>nul') do (
-        call :validate_and_output "%%A,4,https,checkip.amazonaws.com,curl"
+if not "!URL_TO_USE!"=="%DEFAULT_HTTPS_IPV4%" (
+    for /f %%A in ('curl -ks --max-time %TIMEOUT% "%DEFAULT_HTTPS_IPV4%" 2^>nul') do (
+        call :validate_and_output "%%A,4,https,ipv4.icanhazip.com,curl"
         if not errorlevel 1 exit /b 0
     )
 )
 exit /b 1
 
-:https_certutil
+:https_curl_ipv6
+where curl >nul 2>&1 || exit /b 1
+set "URL_TO_USE=%HTTPS_URL_IPV6%"
+set "HOST_TO_REPORT=%BASE_HOST_IPV6%"
+for /f %%A in ('curl -6 -ks --max-time %TIMEOUT% "!URL_TO_USE!" 2^>nul') do (
+    call :validate_and_output "%%A,6,https,!HOST_TO_REPORT!,curl"
+    if not errorlevel 1 exit /b 0
+)
+if not "!URL_TO_USE!"=="%DEFAULT_HTTPS_IPV6%" (
+    for /f %%A in ('curl -6 -ks --max-time %TIMEOUT% "%DEFAULT_HTTPS_IPV6%" 2^>nul') do (
+        call :validate_and_output "%%A,6,https,ipv6.icanhazip.com,curl"
+        if not errorlevel 1 exit /b 0
+    )
+)
+exit /b 1
+
+:https_certutil_ipv4
 where certutil >nul 2>&1 || exit /b 1
-set "tmpfile=%~dp0getip_%RANDOM%.tmp"
-certutil -urlcache -split -f "%HTTPS_URL%" "!tmpfile!" >nul 2>&1
+set "URL_TO_USE=%HTTPS_URL_IPV4%"
+set "HOST_TO_REPORT=%BASE_HOST_IPV4%"
+set "tmpfile=%~dp0certutil_ipv4.tmp"
+certutil -urlcache -split -f "!URL_TO_USE!" "!tmpfile!" >nul 2>&1
 if exist "!tmpfile!" (
     for /f %%A in ('type "!tmpfile!" 2^>nul') do (
-        call :validate_and_output "%%A,4,https,%BASE_HOST%,certutil"
+        call :validate_and_output "%%A,4,https,!HOST_TO_REPORT!,certutil"
         if not errorlevel 1 (
             del "!tmpfile!" >nul 2>&1
             exit /b 0
@@ -249,13 +396,12 @@ if exist "!tmpfile!" (
     )
     del "!tmpfile!" >nul 2>&1
 )
-
-if not "%HTTPS_URL%"=="https://checkip.amazonaws.com" (
-    set "tmpfile=%~dp0getip_%RANDOM%.tmp"
-    certutil -urlcache -split -f "https://checkip.amazonaws.com" "!tmpfile!" >nul 2>&1
+if not "!URL_TO_USE!"=="%DEFAULT_HTTPS_IPV4%" (
+    set "tmpfile=%~dp0certutil_ipv4.tmp"
+    certutil -urlcache -split -f "%DEFAULT_HTTPS_IPV4%" "!tmpfile!" >nul 2>&1
     if exist "!tmpfile!" (
         for /f %%A in ('type "!tmpfile!" 2^>nul') do (
-            call :validate_and_output "%%A,4,https,checkip.amazonaws.com,certutil"
+            call :validate_and_output "%%A,4,https,ipv4.icanhazip.com,certutil"
             if not errorlevel 1 (
                 del "!tmpfile!" >nul 2>&1
                 exit /b 0
@@ -266,13 +412,15 @@ if not "%HTTPS_URL%"=="https://checkip.amazonaws.com" (
 )
 exit /b 1
 
-:https_bitsadmin
-where bitsadmin >nul 2>&1 || exit /b 1
-set "tmpfile=%~dp0getip_%RANDOM%.tmp"
-bitsadmin /transfer getip "%HTTPS_URL%" "!tmpfile!" >nul 2>&1
+:https_certutil_ipv6
+where certutil >nul 2>&1 || exit /b 1
+set "URL_TO_USE=%HTTPS_URL_IPV6%"
+set "HOST_TO_REPORT=%BASE_HOST_IPV6%"
+set "tmpfile=%~dp0certutil_ipv6.tmp"
+certutil -urlcache -split -f "!URL_TO_USE!" "!tmpfile!" >nul 2>&1
 if exist "!tmpfile!" (
     for /f %%A in ('type "!tmpfile!" 2^>nul') do (
-        call :validate_and_output "%%A,4,https,%BASE_HOST%,bitsadmin"
+        call :validate_and_output "%%A,6,https,!HOST_TO_REPORT!,certutil"
         if not errorlevel 1 (
             del "!tmpfile!" >nul 2>&1
             exit /b 0
@@ -280,13 +428,12 @@ if exist "!tmpfile!" (
     )
     del "!tmpfile!" >nul 2>&1
 )
-
-if not "%HTTPS_URL%"=="https://checkip.amazonaws.com" (
-    set "tmpfile=%~dp0getip_%RANDOM%.tmp"
-    bitsadmin /transfer getip_fallback "https://checkip.amazonaws.com" "!tmpfile!" >nul 2>&1
+if not "!URL_TO_USE!"=="%DEFAULT_HTTPS_IPV6%" (
+    set "tmpfile=%~dp0certutil_ipv6.tmp"
+    certutil -urlcache -split -f "%DEFAULT_HTTPS_IPV6%" "!tmpfile!" >nul 2>&1
     if exist "!tmpfile!" (
         for /f %%A in ('type "!tmpfile!" 2^>nul') do (
-            call :validate_and_output "%%A,4,https,checkip.amazonaws.com,bitsadmin"
+            call :validate_and_output "%%A,6,https,ipv6.icanhazip.com,certutil"
             if not errorlevel 1 (
                 del "!tmpfile!" >nul 2>&1
                 exit /b 0
@@ -294,68 +441,171 @@ if not "%HTTPS_URL%"=="https://checkip.amazonaws.com" (
         )
         del "!tmpfile!" >nul 2>&1
     )
+)
+exit /b 1
+
+:https_bitsadmin_ipv4
+where bitsadmin >nul 2>&1 || exit /b 1
+set "URL_TO_USE=%HTTPS_URL_IPV4%"
+set "HOST_TO_REPORT=%BASE_HOST_IPV4%"
+set "tmpfile=%~dp0bitsadmin_ipv4.tmp"
+bitsadmin /transfer getip "!URL_TO_USE!" "!tmpfile!" >nul 2>&1
+if exist "!tmpfile!" (
+    for /f %%A in ('type "!tmpfile!" 2^>nul') do (
+        call :validate_and_output "%%A,4,https,!HOST_TO_REPORT!,bitsadmin"
+        if not errorlevel 1 (
+            del "!tmpfile!" >nul 2>&1
+            exit /b 0
+        )
+    )
+    del "!tmpfile!" >nul 2>&1
+)
+if not "!URL_TO_USE!"=="%DEFAULT_HTTPS_IPV4%" (
+    set "tmpfile=%~dp0bitsadmin_ipv4.tmp"
+    bitsadmin /transfer getip_fallback "%DEFAULT_HTTPS_IPV4%" "!tmpfile!" >nul 2>&1
+    if exist "!tmpfile!" (
+        for /f %%A in ('type "!tmpfile!" 2^>nul') do (
+            call :validate_and_output "%%A,4,https,ipv4.icanhazip.com,bitsadmin"
+            if not errorlevel 1 (
+                del "!tmpfile!" >nul 2>&1
+                exit /b 0
+            )
+        )
+        del "!tmpfile!" >nul 2>&1
+    )
+)
+exit /b 1
+
+:https_bitsadmin_ipv6
+where bitsadmin >nul 2>&1 || exit /b 1
+set "URL_TO_USE=%HTTPS_URL_IPV6%"
+set "HOST_TO_REPORT=%BASE_HOST_IPV6%"
+set "tmpfile=%~dp0bitsadmin_ipv6.tmp"
+start /B "" cmd /c "bitsadmin /transfer getip6 \"!URL_TO_USE!\" \"!tmpfile!\" >nul 2>&1"
+timeout /t %TIMEOUT% /nobreak >nul 2>&1
+taskkill /F /IM bitsadmin.exe /T >nul 2>&1
+if exist "!tmpfile!" (
+    set "bitsadmin_result=0"
+) else (
+    set "bitsadmin_result=1"
+)
+if "!bitsadmin_result!"=="0" (
+    if exist "!tmpfile!" (
+        for /f %%A in ('type "!tmpfile!" 2^>nul') do (
+            call :validate_and_output "%%A,6,https,!HOST_TO_REPORT!,bitsadmin"
+            if not errorlevel 1 (
+                del "!tmpfile!" >nul 2>&1
+                exit /b 0
+            )
+        )
+        del "!tmpfile!" >nul 2>&1
+    )
+)
+if exist "!tmpfile!" del "!tmpfile!" >nul 2>&1
+if not "!URL_TO_USE!"=="%DEFAULT_HTTPS_IPV6%" (
+    set "tmpfile=%~dp0bitsadmin_ipv6.tmp"
+    start /B "" cmd /c "bitsadmin /transfer getip6_fallback \"!DEFAULT_HTTPS_IPV6!\" \"!tmpfile!\" >nul 2>&1"
+    timeout /t %TIMEOUT% /nobreak >nul 2>&1
+    taskkill /F /IM bitsadmin.exe /T >nul 2>&1
+    if exist "!tmpfile!" (
+        set "bitsadmin_result=0"
+    ) else (
+        set "bitsadmin_result=1"
+    )
+    if "!bitsadmin_result!"=="0" (
+        if exist "!tmpfile!" (
+            for /f %%A in ('type "!tmpfile!" 2^>nul') do (
+                call :validate_and_output "%%A,6,https,ipv6.icanhazip.com,bitsadmin"
+                if not errorlevel 1 (
+                    del "!tmpfile!" >nul 2>&1
+                    exit /b 0
+                )
+            )
+            del "!tmpfile!" >nul 2>&1
+        )
+    )
+    if exist "!tmpfile!" del "!tmpfile!" >nul 2>&1
 )
 exit /b 1
 
 
 :fetch_dns
-call :dns_nslookup && exit /b 0
+set "success=0"
+if "%IP_VERSION_FILTER%"=="ipv4" (
+    call :try_dns_ipv4 && set "success=1"
+) else if "%IP_VERSION_FILTER%"=="ipv6" (
+    call :try_dns_ipv6 && set "success=1"
+) else (
+    call :try_dns_ipv4 && set "success=1"
+    call :try_dns_ipv6 && set "success=1"
+)
+if "%success%"=="1" exit /b 0
 exit /b 1
 
-:dns_nslookup
-where nslookup >nul 2>&1 || exit /b 1
+:try_dns_ipv4
+call :dns_nslookup_ipv4 && exit /b 0
+exit /b 1
 
-if /I "%DNS_PROVIDER%"=="opendns" (
-    call :dns_opendns && exit /b 0
-) else if /I "%DNS_PROVIDER%"=="google" (
-    call :dns_google && exit /b 0
-    call :dns_opendns && exit /b 0
-) else if /I "%DNS_PROVIDER%"=="cloudflare" (
-    call :dns_cloudflare && exit /b 0
-    call :dns_opendns && exit /b 0
+:try_dns_ipv6
+call :dns_nslookup_ipv6 && exit /b 0
+exit /b 1
+
+:dns_nslookup_ipv4
+where nslookup >nul 2>&1 || exit /b 1
+if "%DNS_PROVIDER_IPV4%"=="cloudflare" (
+    call :dns_cloudflare_ipv4 && exit /b 0
+    call :dns_opendns_ipv4 && exit /b 0
+) else (
+    call :dns_opendns_ipv4 && exit /b 0
 )
 exit /b 1
 
-:dns_opendns
-for /f "tokens=2 delims=: " %%A in ('nslookup myip.opendns.com resolver1.opendns.com 2^>nul ^| findstr /r /c:"Address:[ ]*[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*"') do set "ip=%%A"
-if defined ip (
+:dns_nslookup_ipv6
+where nslookup >nul 2>&1 || exit /b 1
+if "%DNS_PROVIDER_IPV6%"=="cloudflare" (
+    call :dns_cloudflare_ipv6 && exit /b 0
+    call :dns_opendns_ipv6 && exit /b 0
+) else (
+    call :dns_opendns_ipv6 && exit /b 0
+)
+exit /b 1
+
+:dns_opendns_ipv4
+for /f "skip=3 tokens=2 delims=: " %%A in ('nslookup myip.opendns.com resolver4.opendns.com 2^>nul') do (
+    set "ip=%%A"
     set "ip=!ip: =!"
     call :validate_and_output "!ip!,4,dns,opendns,nslookup"
     if not errorlevel 1 exit /b 0
 )
 exit /b 1
 
-:dns_google
+:dns_opendns_ipv6
 setlocal
-set "tmp=%~dp0google_dns.tmp"
-nslookup -type=txt o-o.myaddr.l.google.com ns1.google.com 2>nul | findstr /r /c:"\"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\"" > "%tmp%"
-for /f "usebackq delims=" %%A in ("%tmp%") do (set "line=%%A" & goto :google_process)
-:google_process
-for /f "tokens=* delims= " %%B in ('echo(!line!') do set "line=%%B"
-set "line=!line:"=!"
-call :validate_and_output "!line!,4,dns,google,nslookup"
-if not errorlevel 1 (
-    del "%tmp%" >nul 2>&1
-    endlocal
-    exit /b 0
+set "tmp=%~dp0opendns_ipv6.tmp"
+nslookup -type=AAAA myip.opendns.com resolver1.opendns.com 2>nul | findstr "Address:" > "%tmp%"
+for /f "usebackq tokens=2 delims= " %%A in ("%tmp%") do (
+    set "last_ip=%%A"
 )
-if not defined line (
-    del "%tmp%" >nul 2>&1
-    endlocal
-    exit /b 1
+if not "!last_ip!"=="" (
+    call :validate_and_output "!last_ip!,6,dns,opendns,nslookup"
+    if not errorlevel 1 (
+        del "%tmp%" >nul 2>&1
+        endlocal
+        exit /b 0
+    )
 )
 del "%tmp%" >nul 2>&1
 endlocal
 exit /b 1
 
-:dns_cloudflare
+:dns_cloudflare_ipv4
 setlocal
-set "tmp=%~dp0cloudflare_dns.tmp"
+set "tmp=%~dp0cloudflare_ipv4.tmp"
 nslookup -class=CHAOS -q=TXT whoami.cloudflare 1.1.1.1 2>nul | findstr /r /c:"\"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\"" > "%tmp%"
-for /f "usebackq delims=" %%A in ("%tmp%") do (set "line=%%A" & goto :cloudflare_process)
-:cloudflare_process
-for /f "tokens=* delims= " %%B in ('echo(!line!') do set "line=%%B"
+for /f "usebackq delims=" %%A in ("%tmp%") do (set "line=%%A" & goto :cloudflare_ipv4_process)
+:cloudflare_ipv4_process
 set "line=!line:"=!"
+for /f "tokens=*" %%C in ("!line!") do set "line=%%C"
 call :validate_and_output "!line!,4,dns,cloudflare,nslookup"
 if not errorlevel 1 (
     del "%tmp%" >nul 2>&1
@@ -371,30 +621,136 @@ del "%tmp%" >nul 2>&1
 endlocal
 exit /b 1
 
+:dns_cloudflare_ipv6
+setlocal
+set "tmp=%~dp0cloudflare_ipv6.tmp"
+nslookup -class=CHAOS -q=TXT whoami.cloudflare 2606:4700:4700::1111 2>nul | findstr /r /c:"\"[0-9a-fA-F:]*:.*\"" > "%tmp%"
+for /f "usebackq delims=" %%A in ("%tmp%") do (set "line=%%A" & goto :cloudflare_ipv6_process)
+:cloudflare_ipv6_process
+set "line=!line:"=!"
+for /f "tokens=*" %%C in ("!line!") do set "line=%%C"
+call :validate_and_output "!line!,6,dns,cloudflare,nslookup"
+if not errorlevel 1 (
+    del "%tmp%" >nul 2>&1
+    endlocal
+    exit /b 0
+)
+if not defined line (
+    del "%tmp%" >nul 2>&1
+    endlocal
+    exit /b 1
+)
+del "%tmp%" >nul 2>&1
+endlocal
+exit /b 1
+exit /b 1
+
 
 :validate_and_output
 setlocal
 set "result=%~1"
 
-for /f "tokens=1 delims=," %%A in ("%result%") do set "ip_part=%%A"
+for /f "tokens=1,2 delims=," %%A in ("%result%") do (
+    set "ip_part=%%A"
+    set "ip_version=%%B"
+)
 
 set "ip_part=!ip_part:"=!"
 
-echo !ip_part! | findstr /r "[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*" >nul
-if errorlevel 1 (
+set "is_valid=0"
+if "!ip_version!"=="4" (
+    echo !ip_part! | findstr /r "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*" >nul
+    if not errorlevel 1 (
+        for /f "tokens=1,2,3,4 delims=." %%A in ("!ip_part!") do (
+            if %%A leq 255 if %%B leq 255 if %%C leq 255 if %%D leq 255 (
+                set "is_valid=1"
+            )
+        )
+    )
+) else if "!ip_version!"=="6" (
+    echo !ip_part! | findstr /r "[0-9a-fA-F:][0-9a-fA-F:]*" >nul
+    if not errorlevel 1 (
+        echo !ip_part! | findstr ":" >nul
+        if not errorlevel 1 (
+            set "colon_count=0"
+            set "temp_ip=!ip_part!"
+            :count_colons
+            if "!temp_ip!"=="" goto done_counting
+            if "!temp_ip:~0,1!"==":" set /a colon_count+=1
+            set "temp_ip=!temp_ip:~1!"
+            goto count_colons
+            :done_counting
+            if !colon_count! geq 2 if !colon_count! leq 7 (
+                set "is_valid=1"
+            )
+        )
+    )
+)
+
+if "!is_valid!"=="1" (
+    if "%IP_ONLY%"=="1" (
+        echo !ip_part!
+    ) else (
+        echo !result!
+    )
     endlocal
-    exit /b 1
+    exit /b 0
 )
-
-for /f "tokens=1,2,3,4 delims=." %%A in ("!ip_part!") do (
-    if %%A gtr 255 (endlocal & exit /b 1)
-    if %%B gtr 255 (endlocal & exit /b 1)
-    if %%C gtr 255 (endlocal & exit /b 1)
-    if %%D gtr 255 (endlocal & exit /b 1)
-)
-
-for /f "tokens=1* delims=," %%A in ("%result%") do set "metadata=%%B"
-
-<nul set /p "=!ip_part!,!metadata!"
 endlocal
-exit /b 0
+exit /b 1
+
+:https_curl_forced
+where curl >nul 2>&1 || exit /b 1
+set "success=0"
+if "%IP_VERSION_FILTER%"=="ipv4" (
+    call :https_curl_ipv4 && set "success=1"
+) else if "%IP_VERSION_FILTER%"=="ipv6" (
+    call :https_curl_ipv6 && set "success=1"
+) else (
+    call :https_curl_ipv4 && set "success=1"
+    call :https_curl_ipv6 && set "success=1"
+)
+if "%success%"=="1" exit /b 0
+exit /b 1
+
+:https_certutil_forced
+where certutil >nul 2>&1 || exit /b 1
+set "success=0"
+if "%IP_VERSION_FILTER%"=="ipv4" (
+    call :https_certutil_ipv4 && set "success=1"
+) else if "%IP_VERSION_FILTER%"=="ipv6" (
+    call :https_certutil_ipv6 && set "success=1"
+) else (
+    call :https_certutil_ipv4 && set "success=1"
+    call :https_certutil_ipv6 && set "success=1"
+)
+if "%success%"=="1" exit /b 0
+exit /b 1
+
+:https_bitsadmin_forced
+where bitsadmin >nul 2>&1 || exit /b 1
+set "success=0"
+if "%IP_VERSION_FILTER%"=="ipv4" (
+    call :https_bitsadmin_ipv4 && set "success=1"
+) else if "%IP_VERSION_FILTER%"=="ipv6" (
+    call :https_bitsadmin_ipv6 && set "success=1"
+) else (
+    call :https_bitsadmin_ipv4 && set "success=1"
+    call :https_bitsadmin_ipv6 && set "success=1"
+)
+if "%success%"=="1" exit /b 0
+exit /b 1
+
+:dns_nslookup_forced
+where nslookup >nul 2>&1 || exit /b 1
+set "success=0"
+if "%IP_VERSION_FILTER%"=="ipv4" (
+    call :dns_nslookup_ipv4 && set "success=1"
+) else if "%IP_VERSION_FILTER%"=="ipv6" (
+    call :dns_nslookup_ipv6 && set "success=1"
+) else (
+    call :dns_nslookup_ipv4 && set "success=1"
+    call :dns_nslookup_ipv6 && set "success=1"
+)
+if "%success%"=="1" exit /b 0
+exit /b 1

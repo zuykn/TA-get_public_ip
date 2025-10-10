@@ -5,7 +5,7 @@
     "id": {
       "group": null,
       "name": "TA-get_public_ip",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     "author": [
       {
@@ -15,7 +15,7 @@
       }
     ],
     "releaseDate": null,
-    "description": "Get Public IP Add-on by zuykn.io - Collects the external public IPv4 address in use by a Splunk Universal Forwarder/Enterprise for Windows, Linux, Unix, and macOS. Need help? Email us: support@zuykn.io or visit us on the web: https://zuykn.io",
+    "description": "Get Public IP Add-on by zuykn.io - Collects the external public IPv4 and IPv6 addresses in use by a Splunk Universal Forwarder/Enterprise for Windows, Linux, Unix, and macOS. Need help? Email us: support@zuykn.io or visit us on the web: https://zuykn.io",
     "classification": {
       "intendedAudience": null,
       "categories": [],
