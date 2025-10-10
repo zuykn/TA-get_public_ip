@@ -145,7 +145,7 @@ The add-on extracts the following fields from the collected data for sourcetype 
 
 | Field | Description | Example Values |
 |-------|-------------|----------------|
-| `public_ip` | The external public IP address | `203.0.113.45`, `2001:db8::1` |
+| `public_ip` | The external public IP address | `52.1.114.19`, `2001:4860:4860:0000:0000:0000:0000:8888` |
 | `ip_version` | IP protocol version | `4`, `6` |
 | `method` | Acquisition method used | `https`, `dns` |
 | `provider` | Service provider or endpoint used | `ipv4.icanhazip.com`, `ipv6.icanhazip.com`, `opendns`, `cloudflare` |
@@ -159,9 +159,9 @@ The scripts output a single line of CSV data per execution:
 
 ```
 52.5.196.118,4,https,ipv4.icanhazip.com,curl
-2001:db8::1,6,https,ipv6.icanhazip.com,curl
+2001:4860:4860:0000:0000:0000:0000:8888,6,https,ipv6.icanhazip.com,curl
 52.1.114.19,4,dns,opendns,dig
-2001:db8::2,6,dns,cloudflare,nslookup
+2001:4860:4860:0000:0000:0000:0000:8844,6,dns,cloudflare,nslookup
 ```
 
 Format: `public_ip,ip_version,method,provider,command`
@@ -182,16 +182,17 @@ index=main sourcetype=public_ip
 | table host public_ip ip_version method provider command
 ```
 
-#### View IPv4 and IPv6 Addresses by Host
-This search shows both IPv4 and IPv6 addresses for each host, displaying them in separate columns.
+#### View Latest Public IPv4 and IPv6 by Host
+This search retrieves the latest public IPv4 and IPv6 information for each host in your environment and displays it in a table format.
 
 ```spl
 index=main sourcetype=public_ip 
-| eval ip_type=if(ip_version="4","ipv4","ipv6")
-| stats latest(public_ip) as public_ip by host ip_type
-| eval {ip_type}=public_ip
-| stats values(ipv4) as ipv4 values(ipv6) as ipv6 by host
-| table host ipv4 ipv6
+| stats latest(ip_version) as ip_version
+    latest(method) as method
+    latest(provider) as provider
+    latest(command) as command
+    by host public_ip 
+| table host public_ip ip_version
 ```
 
 #### Geographic Distribution of Public IPs
